@@ -57,18 +57,16 @@ pub fn get(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // adding impls for getters
     for field in a_fields.iter() {
-        // name of the field
+        // name of the field and ref getter
         let fieldname = ident_str(field.as_str());
-        // get name
-        let fnname = ident(format!("get_{}", field));
         // get_mut name
-        let fnname_mut = ident(format!("get_{}_mut", field));
+        let fnname_mut = ident(format!("{}_mut", field));
         // typename
         let ty = tymap.get(field);
         // code gen
         let res: TokenStream = quote! {
             impl #name {
-                pub fn #fnname(&self) -> &#ty {
+                pub fn #fieldname(&self) -> &#ty {
                     &self.#fieldname
                 }
 
