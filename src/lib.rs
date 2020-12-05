@@ -83,3 +83,69 @@ pub fn get(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     ts
 }
+
+// macro for generating setters
+#[proc_macro_attribute]
+pub fn set(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // getting attribute fields as Vec<String>
+    let a_fields = match PathList::from_list(&parse_macro_input!(attr as AttributeArgs)) {
+        Ok(v) => v.to_strings(),
+        Err(e) => return TokenStream::from(e.write_errors()),
+    };
+
+    // cloning TokenStream for further return
+    let mut ts = item.clone();
+    // Getting the syn AST
+    let item_struct = parse_macro_input!(item as ItemStruct);
+
+    // Getting name of struct
+    let name = &item_struct.ident;
+
+    // Getting type of fields
+    let tymap = {
+        match item_struct.fields {
+            Fields::Named(FieldsNamed {
+                brace_token: _,
+                ref named,
+            }) => {
+                let mut tymap = HashMap::new();
+
+                for f in named.iter() {
+                    if let Some(ref ident) = f.ident {
+                        tymap.insert(ident.to_string(), &f.ty);
+                    }
+                }
+
+                tymap
+            }
+            _ => {
+                return quote! {
+                    compile_error!("The fields should be named");
+                }
+                .into()
+            }
+        }
+    };
+
+    // adding impls for setters
+    for field in a_fields.iter() {
+        // name of the field
+        let fieldname = ident_str(field.as_str());
+        // set name
+        let fnname = ident(format!("set_{}", field));
+        // typename
+        let ty = tymap.get(field);
+        // code gen
+        let res: TokenStream = quote! {
+            impl #name {
+                pub fn #fnname(&mut self, #fieldname: #ty) {
+                    self.#fieldname = #fieldname;
+                }
+            }
+        }
+        .into();
+        ts.extend(res.into_iter());
+    }
+
+    ts
+}
